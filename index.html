@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LabCorp Patient Assistant</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .chat-container {
+            width: 420px;
+            height: 620px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .chat-header {
+            background: #00508F;
+            color: white;
+            padding: 18px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .chat-header .avatar {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #00508F;
+            font-size: 14px;
+        }
+        .chat-header .info h3 { font-size: 16px; font-weight: 600; }
+        .chat-header .info p { font-size: 12px; opacity: 0.85; }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .message {
+            max-width: 80%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.5;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message.bot {
+            background: #e8f0fe;
+            color: #1a1a1a;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .message.user {
+            background: #00508F;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .quick-replies {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 0 16px 8px;
+        }
+        .quick-reply {
+            background: white;
+            border: 1.5px solid #00508F;
+            color: #00508F;
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .quick-reply:hover {
+            background: #00508F;
+            color: white;
+        }
+        .chat-input {
+            display: flex;
+            padding: 12px 16px;
+            border-top: 1px solid #e0e0e0;
+            gap: 8px;
+        }
+        .chat-input input {
+            flex: 1;
+            border: 1.5px solid #ddd;
+            border-radius: 20px;
+            padding: 10px 16px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .chat-input input:focus { border-color: #00508F; }
+        .chat-input button {
+            background: #00508F;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .chat-input button:hover { background: #003d6e; }
+        .typing {
+            display: flex;
+            gap: 4px;
+            padding: 10px 14px;
+            align-self: flex-start;
+        }
+        .typing span {
+            width: 8px;
+            height: 8px;
+            background: #bbb;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite;
+        }
+        .typing span:nth-child(2) { animation-delay: 0.2s; }
+        .typing span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-8px); }
+        }
+        .disclaimer {
+            font-size: 11px;
+            color: #888;
+            text-align: center;
+            padding: 6px 16px 10px;
+            background: #fafafa;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="avatar">LC</div>
+            <div class="info">
+                <h3>LabCorp Patient Assistant</h3>
+                <p>Powered by AI</p>
+            </div>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="quick-replies" id="quickReplies"></div>
+        <div class="chat-input">
+            <input type="text" id="userInput" placeholder="Type your question..." autocomplete="off">
+            <button onclick="sendMessage()">&#10148;</button>
+        </div>
+        <div class="disclaimer">This is a demo chatbot for educational purposes only. Not for medical advice.</div>
+    </div>
+
+    <script>
+        const responses = {
+            "test results": "You can access your test results through the LabCorp Patient Portal at patient.labcorp.com. Results for routine tests like complete blood counts (CBC) and metabolic panels are typically available within 1-3 business days. Specialty tests such as genetic or oncology panels may take 5-7 days.",
+            "appointments": "You can schedule an appointment at any of our 2,000+ patient service centers through labcorp.com or by calling 1-800-845-6167. Walk-ins are also welcome at most locations. Peak hours are typically 7-9 AM on weekdays, so scheduling outside those times can reduce your wait.",
+            "test finder": "Our AI-powered Test Finder tool helps clinicians identify the right tests using plain language descriptions. Built on Amazon Bedrock, it simplifies test selection from our catalog of thousands of assays. Ask your provider about using Test Finder through LabCorp Link.",
+            "locations": "LabCorp operates nearly 2,000 patient service centers across the United States with over 6,000 phlebotomists. To find the nearest location, visit labcorp.com/locations or use the LabCorp mobile app. Many locations offer early morning and Saturday hours for convenience.",
+            "billing": "For billing questions, you can view and pay your bill at patient.labcorp.com or call our billing department at 1-800-845-6167. LabCorp accepts most major insurance plans. If you are uninsured, ask about our self-pay pricing and payment plan options.",
+            "covid": "LabCorp offers several COVID-19 testing options including PCR and rapid antigen tests. You can schedule a COVID test at most patient service centers or through our at-home collection kits. Results for rapid tests are typically available within 24 hours.",
+            "genetic testing": "LabCorp provides comprehensive genetic testing services including carrier screening, hereditary cancer panels, pharmacogenomics, and prenatal testing. Our oncology testing analyzes over 500 genes to help guide personalized treatment decisions. Speak with your healthcare provider about which genetic tests may be appropriate for you.",
+            "mobile app": "The LabCorp mobile app allows you to find nearby locations, schedule appointments, view test results, and manage your account. It is available for download on both iOS and Android devices. The app also provides estimated wait times at patient service centers near you.",
+            "turnaround": "Turnaround times vary by test type. Routine tests such as CBC and metabolic panels typically take 1-3 business days. Specialty tests including genetic and oncology panels may take 5-7 business days. With our proposed machine learning automation, we project a 30-40 percent reduction in turnaround times for routine screening.",
+            "insurance": "LabCorp works with most major insurance providers including Aetna, Blue Cross Blue Shield, Cigna, Humana, UnitedHealthcare, and Medicare. Coverage and out-of-pocket costs depend on your specific plan. Contact your insurance provider or call LabCorp billing at 1-800-845-6167 for coverage verification.",
+            "hello": "Hello! Welcome to the LabCorp Patient Assistant. I can help you with information about test results, appointments, locations, billing, and more. What would you like to know?",
+            "hi": "Hello! Welcome to the LabCorp Patient Assistant. I can help you with information about test results, appointments, locations, billing, and more. What would you like to know?",
+            "help": "I can assist you with the following topics:\n- Test results and turnaround times\n- Scheduling appointments\n- Finding locations near you\n- Billing and insurance questions\n- COVID-19 testing\n- Genetic testing\n- Our AI-powered Test Finder\n- Mobile app features\n\nJust type your question or select one of the quick reply options.",
+            "default": "I appreciate your question. I am currently able to help with topics like test results, appointments, locations, billing, insurance, COVID testing, genetic testing, and our Test Finder tool. Could you try rephrasing your question, or select one of the quick reply options below?"
+        };
+
+        const quickReplyOptions = [
+            "Test Results", "Appointments", "Locations", "Billing", "Test Finder", "Genetic Testing"
+        ];
+
+        function addMessage(text, sender) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const msg = document.createElement('div');
+            msg.className = `message ${sender}`;
+            msg.textContent = text;
+            messagesDiv.appendChild(msg);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function showTyping() {
+            const messagesDiv = document.getElementById('chatMessages');
+            const typing = document.createElement('div');
+            typing.className = 'typing';
+            typing.id = 'typing';
+            typing.innerHTML = '<span></span><span></span><span></span>';
+            messagesDiv.appendChild(typing);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function removeTyping() {
+            const typing = document.getElementById('typing');
+            if (typing) typing.remove();
+        }
+
+        function showQuickReplies() {
+            const container = document.getElementById('quickReplies');
+            container.innerHTML = '';
+            quickReplyOptions.forEach(option => {
+                const btn = document.createElement('button');
+                btn.className = 'quick-reply';
+                btn.textContent = option;
+                btn.onclick = () => {
+                    document.getElementById('userInput').value = option;
+                    sendMessage();
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function getResponse(input) {
+            const lower = input.toLowerCase();
+            for (const [key, value] of Object.entries(responses)) {
+                if (key !== 'default' && lower.includes(key)) {
+                    return value;
+                }
+            }
+            if (lower.includes('result')) return responses['test results'];
+            if (lower.includes('appointment') || lower.includes('schedule') || lower.includes('book')) return responses['appointments'];
+            if (lower.includes('location') || lower.includes('near') || lower.includes('find')) return responses['locations'];
+            if (lower.includes('bill') || lower.includes('pay') || lower.includes('cost') || lower.includes('price')) return responses['billing'];
+            if (lower.includes('covid') || lower.includes('coronavirus')) return responses['covid'];
+            if (lower.includes('genetic') || lower.includes('dna') || lower.includes('hereditary')) return responses['genetic testing'];
+            if (lower.includes('app') || lower.includes('mobile') || lower.includes('download')) return responses['mobile app'];
+            if (lower.includes('how long') || lower.includes('turnaround') || lower.includes('wait')) return responses['turnaround'];
+            if (lower.includes('insurance') || lower.includes('coverage')) return responses['insurance'];
+            if (lower.includes('test finder') || lower.includes('find test') || lower.includes('which test')) return responses['test finder'];
+            if (lower.includes('help') || lower.includes('what can')) return responses['help'];
+            if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) return responses['hello'];
+            if (lower.includes('thank')) return "You are welcome! Is there anything else I can help you with?";
+            return responses['default'];
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            addMessage(text, 'user');
+            input.value = '';
+            document.getElementById('quickReplies').innerHTML = '';
+
+            showTyping();
+            setTimeout(() => {
+                removeTyping();
+                const response = getResponse(text);
+                addMessage(response, 'bot');
+                showQuickReplies();
+            }, 800 + Math.random() * 600);
+        }
+
+        document.getElementById('userInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // Initial greeting
+        setTimeout(() => {
+            addMessage("Hello! I am the LabCorp Patient Assistant. I can help you with test results, appointments, locations, billing, and more. How can I assist you today?", 'bot');
+            showQuickReplies();
+        }, 500);
+    </script>
+</body>
+</html>
