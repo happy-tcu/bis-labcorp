@@ -15,8 +15,8 @@
             min-height: 100vh;
         }
         .chat-container {
-            width: 420px;
-            height: 620px;
+            width: 440px;
+            height: 660px;
             background: white;
             border-radius: 16px;
             box-shadow: 0 4px 24px rgba(0,0,0,0.12);
@@ -27,7 +27,7 @@
         .chat-header {
             background: #00508F;
             color: white;
-            padding: 18px 20px;
+            padding: 14px 20px;
             display: flex;
             align-items: center;
             gap: 12px;
@@ -44,8 +44,20 @@
             color: #00508F;
             font-size: 14px;
         }
+        .chat-header .info { flex: 1; }
         .chat-header .info h3 { font-size: 16px; font-weight: 600; }
         .chat-header .info p { font-size: 12px; opacity: 0.85; }
+        .lang-toggle {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.4);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .lang-toggle:hover { background: rgba(255,255,255,0.3); }
         .chat-messages {
             flex: 1;
             overflow-y: auto;
@@ -55,12 +67,13 @@
             gap: 12px;
         }
         .message {
-            max-width: 80%;
+            max-width: 82%;
             padding: 10px 14px;
             border-radius: 12px;
             font-size: 14px;
             line-height: 1.5;
             animation: fadeIn 0.3s ease;
+            white-space: pre-line;
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(8px); }
@@ -77,6 +90,12 @@
             color: white;
             align-self: flex-end;
             border-bottom-right-radius: 4px;
+        }
+        .message .context-note {
+            font-size: 11px;
+            color: #666;
+            font-style: italic;
+            margin-bottom: 4px;
         }
         .quick-replies {
             display: flex;
@@ -163,8 +182,9 @@
             <div class="avatar">LC</div>
             <div class="info">
                 <h3>LabCorp Patient Assistant</h3>
-                <p>Powered by AI</p>
+                <p id="headerStatus">Powered by AI</p>
             </div>
+            <button class="lang-toggle" onclick="toggleLanguage()" id="langBtn">ES</button>
         </div>
         <div class="chat-messages" id="chatMessages"></div>
         <div class="quick-replies" id="quickReplies"></div>
@@ -176,26 +196,116 @@
     </div>
 
     <script>
-        const responses = {
-            "test results": "You can access your test results through the LabCorp Patient Portal at patient.labcorp.com. Results for routine tests like complete blood counts (CBC) and metabolic panels are typically available within 1-3 business days. Specialty tests such as genetic or oncology panels may take 5-7 days.",
-            "appointments": "You can schedule an appointment at any of our 2,000+ patient service centers through labcorp.com or by calling 1-800-845-6167. Walk-ins are also welcome at most locations. Peak hours are typically 7-9 AM on weekdays, so scheduling outside those times can reduce your wait.",
-            "test finder": "Our AI-powered Test Finder tool helps clinicians identify the right tests using plain language descriptions. Built on Amazon Bedrock, it simplifies test selection from our catalog of thousands of assays. Ask your provider about using Test Finder through LabCorp Link.",
-            "locations": "LabCorp operates nearly 2,000 patient service centers across the United States with over 6,000 phlebotomists. To find the nearest location, visit labcorp.com/locations or use the LabCorp mobile app. Many locations offer early morning and Saturday hours for convenience.",
-            "billing": "For billing questions, you can view and pay your bill at patient.labcorp.com or call our billing department at 1-800-845-6167. LabCorp accepts most major insurance plans. If you are uninsured, ask about our self-pay pricing and payment plan options.",
-            "covid": "LabCorp offers several COVID-19 testing options including PCR and rapid antigen tests. You can schedule a COVID test at most patient service centers or through our at-home collection kits. Results for rapid tests are typically available within 24 hours.",
-            "genetic testing": "LabCorp provides comprehensive genetic testing services including carrier screening, hereditary cancer panels, pharmacogenomics, and prenatal testing. Our oncology testing analyzes over 500 genes to help guide personalized treatment decisions. Speak with your healthcare provider about which genetic tests may be appropriate for you.",
-            "mobile app": "The LabCorp mobile app allows you to find nearby locations, schedule appointments, view test results, and manage your account. It is available for download on both iOS and Android devices. The app also provides estimated wait times at patient service centers near you.",
-            "turnaround": "Turnaround times vary by test type. Routine tests such as CBC and metabolic panels typically take 1-3 business days. Specialty tests including genetic and oncology panels may take 5-7 business days. With our proposed machine learning automation, we project a 30-40 percent reduction in turnaround times for routine screening.",
-            "insurance": "LabCorp works with most major insurance providers including Aetna, Blue Cross Blue Shield, Cigna, Humana, UnitedHealthcare, and Medicare. Coverage and out-of-pocket costs depend on your specific plan. Contact your insurance provider or call LabCorp billing at 1-800-845-6167 for coverage verification.",
-            "hello": "Hello! Welcome to the LabCorp Patient Assistant. I can help you with information about test results, appointments, locations, billing, and more. What would you like to know?",
-            "hi": "Hello! Welcome to the LabCorp Patient Assistant. I can help you with information about test results, appointments, locations, billing, and more. What would you like to know?",
-            "help": "I can assist you with the following topics:\n- Test results and turnaround times\n- Scheduling appointments\n- Finding locations near you\n- Billing and insurance questions\n- COVID-19 testing\n- Genetic testing\n- Our AI-powered Test Finder\n- Mobile app features\n\nJust type your question or select one of the quick reply options.",
-            "default": "I appreciate your question. I am currently able to help with topics like test results, appointments, locations, billing, insurance, COVID testing, genetic testing, and our Test Finder tool. Could you try rephrasing your question, or select one of the quick reply options below?"
+        let userName = null;
+        let conversationHistory = [];
+        let currentLang = 'en';
+        let lastTopic = null;
+        let topicCounts = {};
+
+        const topics = {
+            "test results": {
+                keywords: ["test results", "results", "lab results", "my results", "check results", "get results", "view results", "see results", "result", "report", "lab report"],
+                en: "You can access your test results through the LabCorp Patient Portal at patient.labcorp.com. Results for routine tests like complete blood counts (CBC) and metabolic panels are typically available within 1-3 business days. Specialty tests such as genetic or oncology panels may take 5-7 days.",
+                es: "Puede acceder a sus resultados a traves del Portal del Paciente de LabCorp en patient.labcorp.com. Los resultados de pruebas de rutina como hemogramas completos (CBC) y paneles metabolicos generalmente estan disponibles en 1-3 dias habiles. Las pruebas especializadas como paneles geneticos u oncologicos pueden tardar de 5 a 7 dias.",
+                followUp: "Would you like to know about turnaround times for a specific test type?"
+            },
+            "appointments": {
+                keywords: ["appointment", "appointments", "schedule", "book", "booking", "visit", "walk-in", "walk in", "come in", "set up", "make an appointment", "see a doctor"],
+                en: "You can schedule an appointment at any of our 2,000+ patient service centers through labcorp.com or by calling 1-800-845-6167. Walk-ins are also welcome at most locations. Peak hours are typically 7-9 AM on weekdays, so scheduling outside those times can reduce your wait.",
+                es: "Puede programar una cita en cualquiera de nuestros mas de 2,000 centros de servicio a traves de labcorp.com o llamando al 1-800-845-6167. Las visitas sin cita tambien son bienvenidas en la mayoria de las ubicaciones. Las horas pico son generalmente de 7 a 9 AM en dias de semana.",
+                followUp: "Would you like help finding a location near you?"
+            },
+            "test finder": {
+                keywords: ["test finder", "find test", "which test", "what test", "recommend test", "test recommendation", "right test", "order test", "test selection", "what should i get tested for"],
+                en: "Our AI-powered Test Finder tool helps clinicians identify the right tests using plain language descriptions. Built on Amazon Bedrock, it simplifies test selection from our catalog of thousands of assays. Ask your provider about using Test Finder through LabCorp Link.",
+                es: "Nuestra herramienta Test Finder impulsada por IA ayuda a los clinicos a identificar las pruebas correctas utilizando descripciones en lenguaje natural. Construida sobre Amazon Bedrock, simplifica la seleccion de pruebas de nuestro catalogo de miles de ensayos.",
+                followUp: "Would you like to know more about specific types of tests we offer?"
+            },
+            "locations": {
+                keywords: ["location", "locations", "near me", "nearest", "find", "where", "address", "center", "service center", "lab near", "close to me", "nearby", "blood work near", "go for blood work", "where do i go", "drive to"],
+                en: "LabCorp operates nearly 2,000 patient service centers across the United States with over 6,000 phlebotomists. To find the nearest location, visit labcorp.com/locations or use the LabCorp mobile app. Many locations offer early morning and Saturday hours for convenience.",
+                es: "LabCorp opera cerca de 2,000 centros de servicio al paciente en los Estados Unidos con mas de 6,000 flebotomistas. Para encontrar la ubicacion mas cercana, visite labcorp.com/locations o use la aplicacion movil de LabCorp.",
+                followUp: "Would you like information about scheduling an appointment?"
+            },
+            "billing": {
+                keywords: ["billing", "bill", "pay", "payment", "cost", "price", "charge", "fee", "how much", "expensive", "afford", "invoice", "owe", "balance", "copay", "co-pay", "out of pocket"],
+                en: "For billing questions, you can view and pay your bill at patient.labcorp.com or call our billing department at 1-800-845-6167. LabCorp accepts most major insurance plans. If you are uninsured, ask about our self-pay pricing and payment plan options.",
+                es: "Para preguntas de facturacion, puede ver y pagar su factura en patient.labcorp.com o llamar a nuestro departamento de facturacion al 1-800-845-6167. LabCorp acepta la mayoria de los planes de seguro principales.",
+                followUp: "Would you like to check your insurance coverage?"
+            },
+            "covid": {
+                keywords: ["covid", "covid-19", "coronavirus", "pandemic", "pcr", "antigen", "rapid test", "covid test"],
+                en: "LabCorp offers several COVID-19 testing options including PCR and rapid antigen tests. You can schedule a COVID test at most patient service centers or through our at-home collection kits. Results for rapid tests are typically available within 24 hours.",
+                es: "LabCorp ofrece varias opciones de pruebas de COVID-19, incluyendo pruebas PCR y de antigeno rapido. Puede programar una prueba de COVID en la mayoria de los centros de servicio o mediante nuestros kits de recoleccion a domicilio.",
+                followUp: "Would you like to find a testing location near you?"
+            },
+            "genetic testing": {
+                keywords: ["genetic", "genetics", "dna", "hereditary", "carrier", "prenatal", "cancer panel", "gene", "genome", "pharmacogenomics", "ancestry", "inherited"],
+                en: "LabCorp provides comprehensive genetic testing services including carrier screening, hereditary cancer panels, pharmacogenomics, and prenatal testing. Our oncology testing analyzes over 500 genes to help guide personalized treatment decisions. Speak with your healthcare provider about which genetic tests may be appropriate for you.",
+                es: "LabCorp proporciona servicios integrales de pruebas geneticas incluyendo pruebas de portador, paneles de cancer hereditario, farmacogenomica y pruebas prenatales. Nuestras pruebas de oncologia analizan mas de 500 genes para ayudar a guiar decisiones de tratamiento personalizadas.",
+                followUp: "Would you like information about how to prepare for genetic testing?"
+            },
+            "mobile app": {
+                keywords: ["app", "mobile", "download", "phone", "android", "ios", "iphone", "smartphone", "mobile app"],
+                en: "The LabCorp mobile app allows you to find nearby locations, schedule appointments, view test results, and manage your account. It is available for download on both iOS and Android devices. The app also provides estimated wait times at patient service centers near you.",
+                es: "La aplicacion movil de LabCorp le permite encontrar ubicaciones cercanas, programar citas, ver resultados y administrar su cuenta. Esta disponible para descargar en dispositivos iOS y Android.",
+                followUp: "Would you like to know about other digital tools we offer?"
+            },
+            "turnaround": {
+                keywords: ["turnaround", "how long", "wait", "waiting", "when will", "time", "days", "take long", "results ready", "how fast", "speed", "duration", "processing time"],
+                en: "Turnaround times vary by test type. Routine tests such as CBC and metabolic panels typically take 1-3 business days. Specialty tests including genetic and oncology panels may take 5-7 business days. With our proposed machine learning automation, we project a 30-40 percent reduction in turnaround times for routine screening.",
+                es: "Los tiempos de entrega varian segun el tipo de prueba. Las pruebas de rutina como CBC y paneles metabolicos generalmente toman de 1 a 3 dias habiles. Las pruebas especializadas pueden tardar de 5 a 7 dias habiles. Con nuestra automatizacion de aprendizaje automatico, proyectamos una reduccion del 30-40 por ciento.",
+                followUp: "Would you like to check your existing test results?"
+            },
+            "insurance": {
+                keywords: ["insurance", "coverage", "covered", "aetna", "blue cross", "cigna", "humana", "united", "medicare", "medicaid", "plan", "in network", "in-network", "provider network", "accepted"],
+                en: "LabCorp works with most major insurance providers including Aetna, Blue Cross Blue Shield, Cigna, Humana, UnitedHealthcare, and Medicare. Coverage and out-of-pocket costs depend on your specific plan. Contact your insurance provider or call LabCorp billing at 1-800-845-6167 for coverage verification.",
+                es: "LabCorp trabaja con la mayoria de los principales proveedores de seguros incluyendo Aetna, Blue Cross Blue Shield, Cigna, Humana, UnitedHealthcare y Medicare. La cobertura depende de su plan especifico. Llame al 1-800-845-6167 para verificacion de cobertura.",
+                followUp: "Would you like help understanding your bill?"
+            },
+            "preparation": {
+                keywords: ["prepare", "preparation", "fasting", "fast", "eat", "drink", "before test", "empty stomach", "what to do before", "prep", "ready"],
+                en: "Test preparation varies depending on the type of test ordered. Common requirements include fasting for 8-12 hours before metabolic panels and glucose tests. Stay hydrated by drinking water unless instructed otherwise. Bring your test order form, photo ID, and insurance card to your appointment. Your healthcare provider or the test order will specify any preparation needed.",
+                es: "La preparacion para pruebas varia segun el tipo de prueba. Los requisitos comunes incluyen ayunar de 8 a 12 horas antes de paneles metabolicos y pruebas de glucosa. Mantengase hidratado bebiendo agua. Traiga su orden de prueba, identificacion con foto y tarjeta de seguro.",
+                followUp: "Would you like to schedule an appointment?"
+            },
+            "specimen collection": {
+                keywords: ["blood draw", "blood test", "needle", "phlebotomy", "specimen", "sample", "urine", "collection", "blood work", "bloodwork", "draw blood", "give blood"],
+                en: "LabCorp processes over 400,000 specimens daily. Our phlebotomists are trained professionals who ensure a comfortable collection experience. Blood draws typically take 5-10 minutes. Urine and other specimen collections may have specific instructions provided by your healthcare provider. If you have concerns about needles, let our staff know and they can help make you more comfortable.",
+                es: "LabCorp procesa mas de 400,000 muestras diariamente. Nuestros flebotomistas son profesionales capacitados. Las extracciones de sangre generalmente toman de 5 a 10 minutos. Si tiene preocupaciones sobre las agujas, informe a nuestro personal.",
+                followUp: "Would you like tips on how to prepare for your blood draw?"
+            },
+            "digital transformation": {
+                keywords: ["digital transformation", "technology", "innovation", "ai", "artificial intelligence", "machine learning", "iot", "connected health", "wearable", "future", "modernize"],
+                en: "LabCorp is undergoing a digital transformation focused on four key technologies: machine learning for automated diagnostic analysis, generative AI for intelligent test selection and patient communication, IoT sensors for predictive equipment maintenance, and a connected health platform integrating wearable data with lab results. These technologies are projected to improve turnaround times by 30-40 percent and generate approximately $943 million in incremental revenue by 2028.",
+                es: "LabCorp esta pasando por una transformacion digital enfocada en cuatro tecnologias clave: aprendizaje automatico para analisis diagnostico, IA generativa para seleccion de pruebas, sensores IoT para mantenimiento predictivo y una plataforma de salud conectada que integra datos de dispositivos con resultados de laboratorio.",
+                followUp: "Would you like to learn about a specific technology in our proposal?"
+            }
         };
 
-        const quickReplyOptions = [
-            "Test Results", "Appointments", "Locations", "Billing", "Test Finder", "Genetic Testing"
-        ];
+        const greetings = {
+            en: {
+                welcome: "Hello! I am the LabCorp Patient Assistant. I can help you with test results, appointments, locations, billing, and more. What is your name?",
+                welcomeBack: "Welcome back, {name}! How can I help you today?",
+                nameResponse: "Nice to meet you, {name}! How can I assist you today?",
+                thankYou: "You are welcome, {name}! Is there anything else I can help you with?",
+                followUpIntro: "Based on our conversation, you might also want to know: ",
+                notUnderstood: "I want to make sure I help you with the right information. I can assist with:\n- Test results and turnaround times\n- Scheduling appointments\n- Finding locations near you\n- Billing and insurance\n- COVID-19 and genetic testing\n- Test preparation\n- Our AI-powered Test Finder\n- Mobile app features\n- Digital transformation initiatives\n\nCould you rephrase your question or select a topic below?"
+            },
+            es: {
+                welcome: "Hola! Soy el Asistente de Pacientes de LabCorp. Puedo ayudarle con resultados, citas, ubicaciones, facturacion y mas. Como se llama?",
+                welcomeBack: "Bienvenido de nuevo, {name}! Como puedo ayudarle hoy?",
+                nameResponse: "Mucho gusto, {name}! Como puedo ayudarle hoy?",
+                thankYou: "De nada, {name}! Hay algo mas en lo que pueda ayudarle?",
+                followUpIntro: "Basado en nuestra conversacion, tambien podria interesarle: ",
+                notUnderstood: "Quiero asegurarme de ayudarle con la informacion correcta. Puedo ayudar con:\n- Resultados de pruebas\n- Programar citas\n- Encontrar ubicaciones\n- Facturacion y seguros\n- Pruebas de COVID-19 y geneticas\n- Preparacion para pruebas\n- Herramienta Test Finder\n- Aplicacion movil\n\nPodria reformular su pregunta?"
+            }
+        };
+
+        const quickRepliesData = {
+            en: ["Test Results", "Appointments", "Locations", "Billing", "Test Finder", "Genetic Testing", "Preparation", "Digital Transformation"],
+            es: ["Resultados", "Citas", "Ubicaciones", "Facturacion", "Pruebas Geneticas", "Preparacion"]
+        };
 
         function addMessage(text, sender) {
             const messagesDiv = document.getElementById('chatMessages');
@@ -204,6 +314,7 @@
             msg.textContent = text;
             messagesDiv.appendChild(msg);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            conversationHistory.push({ text, sender, timestamp: new Date().toISOString() });
         }
 
         function showTyping() {
@@ -224,7 +335,8 @@
         function showQuickReplies() {
             const container = document.getElementById('quickReplies');
             container.innerHTML = '';
-            quickReplyOptions.forEach(option => {
+            const options = quickRepliesData[currentLang] || quickRepliesData['en'];
+            options.forEach(option => {
                 const btn = document.createElement('button');
                 btn.className = 'quick-reply';
                 btn.textContent = option;
@@ -236,27 +348,148 @@
             });
         }
 
-        function getResponse(input) {
-            const lower = input.toLowerCase();
-            for (const [key, value] of Object.entries(responses)) {
-                if (key !== 'default' && lower.includes(key)) {
-                    return value;
+        function similarity(str1, str2) {
+            const s1 = str1.toLowerCase();
+            const s2 = str2.toLowerCase();
+            if (s1.includes(s2) || s2.includes(s1)) return 1;
+            let matches = 0;
+            const words1 = s1.split(/\s+/);
+            const words2 = s2.split(/\s+/);
+            for (const w1 of words1) {
+                for (const w2 of words2) {
+                    if (w1.length > 2 && w2.length > 2) {
+                        if (w1.includes(w2) || w2.includes(w1)) matches++;
+                        else if (levenshtein(w1, w2) <= 2) matches += 0.7;
+                    }
                 }
             }
-            if (lower.includes('result')) return responses['test results'];
-            if (lower.includes('appointment') || lower.includes('schedule') || lower.includes('book')) return responses['appointments'];
-            if (lower.includes('location') || lower.includes('near') || lower.includes('find')) return responses['locations'];
-            if (lower.includes('bill') || lower.includes('pay') || lower.includes('cost') || lower.includes('price')) return responses['billing'];
-            if (lower.includes('covid') || lower.includes('coronavirus')) return responses['covid'];
-            if (lower.includes('genetic') || lower.includes('dna') || lower.includes('hereditary')) return responses['genetic testing'];
-            if (lower.includes('app') || lower.includes('mobile') || lower.includes('download')) return responses['mobile app'];
-            if (lower.includes('how long') || lower.includes('turnaround') || lower.includes('wait')) return responses['turnaround'];
-            if (lower.includes('insurance') || lower.includes('coverage')) return responses['insurance'];
-            if (lower.includes('test finder') || lower.includes('find test') || lower.includes('which test')) return responses['test finder'];
-            if (lower.includes('help') || lower.includes('what can')) return responses['help'];
-            if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) return responses['hello'];
-            if (lower.includes('thank')) return "You are welcome! Is there anything else I can help you with?";
-            return responses['default'];
+            return matches / Math.max(words1.length, words2.length);
+        }
+
+        function levenshtein(a, b) {
+            const matrix = Array.from({ length: a.length + 1 }, (_, i) =>
+                Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+            );
+            for (let i = 1; i <= a.length; i++) {
+                for (let j = 1; j <= b.length; j++) {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j] + 1,
+                        matrix[i][j - 1] + 1,
+                        matrix[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+                    );
+                }
+            }
+            return matrix[a.length][b.length];
+        }
+
+        function detectTopic(input) {
+            const lower = input.toLowerCase();
+            let bestMatch = null;
+            let bestScore = 0;
+
+            for (const [topicName, topicData] of Object.entries(topics)) {
+                for (const keyword of topicData.keywords) {
+                    const score = similarity(lower, keyword);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMatch = topicName;
+                    }
+                }
+            }
+
+            return bestScore > 0.3 ? bestMatch : null;
+        }
+
+        function getResponse(input) {
+            const lower = input.toLowerCase();
+            const lang = greetings[currentLang];
+
+            if (lower.includes('thank') || lower.includes('gracias')) {
+                const name = userName ? userName : '';
+                return lang.thankYou.replace('{name}', name);
+            }
+
+            if (!userName) {
+                const words = input.trim().split(/\s+/);
+                if (words.length <= 3 && !lower.includes('help') && !lower.includes('test') && !lower.includes('appointment')) {
+                    userName = words[words.length - 1].replace(/[^a-zA-Z]/g, '');
+                    userName = userName.charAt(0).toUpperCase() + userName.slice(1);
+                    localStorage.setItem('labcorp_user', userName);
+                    return lang.nameResponse.replace('{name}', userName);
+                }
+            }
+
+            const topic = detectTopic(input);
+
+            if (topic) {
+                topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+                const response = topics[topic][currentLang];
+                lastTopic = topic;
+
+                let contextPrefix = '';
+                if (conversationHistory.length > 4 && lastTopic) {
+                    const relatedTopics = getRelatedContext(topic);
+                    if (relatedTopics) {
+                        contextPrefix = relatedTopics + '\n\n';
+                    }
+                }
+
+                let followUp = '';
+                if (topics[topic].followUp && currentLang === 'en') {
+                    followUp = '\n\n' + topics[topic].followUp;
+                }
+
+                const namePrefix = userName ? `${userName}, ` : '';
+                return contextPrefix + namePrefix + response + followUp;
+            }
+
+            if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey') || lower.includes('hola')) {
+                if (userName) {
+                    return lang.welcomeBack.replace('{name}', userName);
+                }
+                return greetings[currentLang].welcome;
+            }
+
+            if (lower.includes('help') || lower.includes('ayuda') || lower.includes('what can')) {
+                return lang.notUnderstood;
+            }
+
+            return lang.notUnderstood;
+        }
+
+        function getRelatedContext(currentTopic) {
+            const relations = {
+                "test results": "turnaround",
+                "turnaround": "test results",
+                "appointments": "locations",
+                "locations": "appointments",
+                "billing": "insurance",
+                "insurance": "billing",
+                "genetic testing": "preparation",
+                "preparation": "appointments",
+                "covid": "locations"
+            };
+
+            const related = relations[currentTopic];
+            if (related && topicCounts[related]) {
+                return currentLang === 'en'
+                    ? "(Since you also asked about " + related + ", this information may be relevant:)"
+                    : "(Ya que tambien pregunto sobre " + related + ":)";
+            }
+            return null;
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'es' : 'en';
+            const btn = document.getElementById('langBtn');
+            btn.textContent = currentLang === 'en' ? 'ES' : 'EN';
+            document.getElementById('userInput').placeholder = currentLang === 'en' ? 'Type your question...' : 'Escriba su pregunta...';
+            document.getElementById('headerStatus').textContent = currentLang === 'en' ? 'Powered by AI' : 'Impulsado por IA';
+            showQuickReplies();
+            const msg = currentLang === 'en'
+                ? 'Switched to English. How can I help you?'
+                : 'Cambiado a Espanol. Como puedo ayudarle?';
+            addMessage(msg, 'bot');
         }
 
         function sendMessage() {
@@ -274,19 +507,24 @@
                 const response = getResponse(text);
                 addMessage(response, 'bot');
                 showQuickReplies();
-            }, 800 + Math.random() * 600);
+            }, 600 + Math.random() * 800);
         }
 
         document.getElementById('userInput').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendMessage();
         });
 
-        // Initial greeting
+        // Check for returning user
+        const savedName = localStorage.getItem('labcorp_user');
         setTimeout(() => {
-            addMessage("Hello! I am the LabCorp Patient Assistant. I can help you with test results, appointments, locations, billing, and more. How can I assist you today?", 'bot');
+            if (savedName) {
+                userName = savedName;
+                addMessage(greetings[currentLang].welcomeBack.replace('{name}', userName), 'bot');
+            } else {
+                addMessage(greetings[currentLang].welcome, 'bot');
+            }
             showQuickReplies();
         }, 500);
     </script>
 </body>
 </html>
-
